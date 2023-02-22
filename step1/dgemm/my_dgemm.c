@@ -49,7 +49,11 @@
 void AddDot(int k, double *A, int lda, double *B, int ldb, double *result) {
     int p;
     for (p = 0; p < k; p++) {
-        *result += A(0, p) * B(p, 0);
+        // *result += A(0, p) * B(p, 0);
+        *result += (*A) * (*B);
+
+        A += lda;   // A points to next column
+        B++;        // B points to next row
     }
 }
 
@@ -60,9 +64,14 @@ void AddDot_MRxNR(int k, double *A, int lda, double *B, int ldb, double *C, int 
     for (jr = 0; jr < DGEMM_NR; jr++) {
         for (ir = 0; ir < DGEMM_MR; ir++) {
 
-            AddDot(k, &A(ir, 0), lda, &B(0, jr), ldb, &C(ir, jr));
+            // AddDot(k, &A(ir, 0), lda, &B(0, jr), ldb, &C(ir, jr));
+            AddDot(k, A++, lda, B, ldb, C++);
 
         }
+
+        A -= DGEMM_MR;  // A goes back to the initial row
+        B += ldb;   // B goes to next column
+        C = C + ldc - DGEMM_MR; // C goes to the next column, but to the initial row.
     }
 }
 
@@ -86,10 +95,18 @@ void bl_dgemm(
         return;
     }
 
-    for (j = 0; j < n; j += DGEMM_NR) {          // Start 2-nd loop
-        for (i = 0; i < m; i += DGEMM_MR) {      // Start 1-st loop
+    // 2.4.1 Using pointers
+    double *cp, *ap, *bp;
 
-            AddDot_MRxNR(k, &A(i, 0), lda, &B(0, j), ldb, &C(i, j), ldc);
+    for (j = 0; j < n; j += DGEMM_NR) {          // Start 2-nd loop
+        cp = &C[j * ldc];   // C(i, j): point to j-th column of C
+        bp = &B[j * ldb];   // B(0, j): point to the j-th column, 0-th row of B
+
+        for (i = 0; i < m; i += DGEMM_MR) {      // Start 1-st loop
+            ap = &A[i];         // A(i, 0): point to the i-th row, 0-th column of A
+
+            // AddDot_MRxNR( k, &A( i, 0 ), lda, &B( 0, j ), ldb, &C( i, j ), ldc );
+            AddDot_MRxNR(k, ap, lda, bp, ldb, cp + i, ldc);
 
         }                                          // End   1-st loop
     }                                              // End   2-nd loop
