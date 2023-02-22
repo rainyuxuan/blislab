@@ -46,11 +46,12 @@
 
 #include "bl_dgemm.h"
 
-#define USE_POINTER_OPT 0
-#define USE_UNROLLING_OPT 1
+#define USE_POINTER_OPT 1
+#define USE_UNROLLING_OPT 0
 #define USE_REGISTER_OPT 0
 
 #if USE_POINTER_OPT
+
 void AddDot(int k, double *A, int lda, double *B, int ldb, double *result) {
     int p;
     for (p = 0; p < k; p++) {
@@ -61,6 +62,7 @@ void AddDot(int k, double *A, int lda, double *B, int ldb, double *result) {
         B++;        // B points to next row
     }
 }
+
 #elif USE_UNROLLING_OPT
 void AddDot(int k, double *A, int lda, double *B, int ldb, double *result) {
     int p;
@@ -77,9 +79,29 @@ void AddDot(int k, double *A, int lda, double *B, int ldb, double *result) {
     }
 }
 #elif USE_REGISTER_OPT
+void AddDot(int k, double *A, int lda, double *B, int ldb, double *result) {
+    int p;
+    int step = 4;
+    for (p = 0; p < k; p += step) {
+        // 2.4.3: Register variables
+        register double c0=(*(A)) * (*(B + 0)),
+                        c1=(*(A + lda)) * (*(B + 1)),
+                        c2=(*(A + 2 * lda)) * (*(B + 2)),
+                        c3=(*(A + 3 * lda)) * (*(B + 3));
+        // *result += A(0, p) * B(p, 0);
+        *result += c0;
+        *result += c1;
+        *result += c2;
+        *result += c3;
+
+        A += step * lda;
+        B += step;
+    }
+}
 #endif
 
 #if USE_POINTER_OPT
+
 void AddDot_MRxNR(int k, double *A, int lda, double *B, int ldb, double *C, int ldc) {
     int ir, jr;
     int p;
@@ -97,7 +119,7 @@ void AddDot_MRxNR(int k, double *A, int lda, double *B, int ldb, double *C, int 
     }
 }
 
-#elif USE_UNROLLING_OPT
+#elif USE_UNROLLING_OPT || USE_REGISTER_OPT
 void AddDot_MRxNR(int k, double *A, int lda, double *B, int ldb, double *C, int ldc) {
     int ir, jr;
     int p;
@@ -129,11 +151,10 @@ void AddDot_MRxNR(int k, double *A, int lda, double *B, int ldb, double *C, int 
     AddDot(k, A + 2, lda, B, ldb, C + 2);
     AddDot(k, A + 3, lda, B, ldb, C + 3);
 }
-
-#elif USE_REGISTER_OPT
 #endif
 
-#if USE_POINTER_OPT || USE_UNROLLING_OPT
+#if USE_POINTER_OPT || USE_UNROLLING_OPT || USE_REGISTER_OPT
+
 void bl_dgemm(
         int m,
         int n,
@@ -170,7 +191,7 @@ void bl_dgemm(
         }                                          // End   1-st loop
     }                                              // End   2-nd loop
 }
-#elif USE_REGISTER_OPT
+
 #endif
 
 
