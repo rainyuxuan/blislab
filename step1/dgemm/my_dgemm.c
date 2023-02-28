@@ -46,9 +46,9 @@
 
 #include "bl_dgemm.h"
 
-#define USE_POINTER_OPT 1
+#define USE_POINTER_OPT 0
 #define USE_UNROLLING_OPT 0
-#define USE_REGISTER_OPT 0
+#define USE_REGISTER_OPT 1
 
 #if USE_POINTER_OPT
 
@@ -82,21 +82,21 @@ void AddDot(int k, double *A, int lda, double *B, int ldb, double *result) {
 void AddDot(int k, double *A, int lda, double *B, int ldb, double *result) {
     int p;
     int step = 4;
+    // 2.4.3: Register variables
+    register double result_reg = 0.0;
+    register double *A_reg = A;
+    register double *B_reg = B;
     for (p = 0; p < k; p += step) {
-        // 2.4.3: Register variables
-        register double c0=(*(A)) * (*(B + 0)),
-                        c1=(*(A + lda)) * (*(B + 1)),
-                        c2=(*(A + 2 * lda)) * (*(B + 2)),
-                        c3=(*(A + 3 * lda)) * (*(B + 3));
         // *result += A(0, p) * B(p, 0);
-        *result += c0;
-        *result += c1;
-        *result += c2;
-        *result += c3;
+        result_reg += (*(A_reg)) * (*(B_reg + 0));
+        result_reg += (*(A_reg + lda)) * (*(B_reg + 1));
+        result_reg += (*(A_reg + 2 * lda)) * (*(B_reg + 2));
+        result_reg += (*(A_reg + 3 * lda)) * (*(B_reg + 3));
 
-        A += step * lda;
-        B += step;
+        A_reg += step * lda;
+        B_reg += step;
     }
+    *result += result_reg;
 }
 #endif
 
